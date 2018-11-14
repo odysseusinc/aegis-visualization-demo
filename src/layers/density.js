@@ -9,7 +9,7 @@ const { GeoJSON } = format;
 
 export class DensityLayer {
     async getData(extent, resolution, projection) {
-        const data = await fetch(`/api/density?bbox=${extent.join(',')}&resolution=${resolution}`);
+        const data = await fetch(`/api/density/${extent[0]}/${extent[1]}/${extent[2]}/${extent[3]}/${resolution}`);
         const json = await data.json();
         const markers = (new GeoJSON()).readFeatures(json).map((marker) => {
             // transform coordinates projection
@@ -32,13 +32,11 @@ export class DensityLayer {
 
         const layer = new Heatmap({
             source,
-            blur: 50,
-            radius: 30,
-            weight: '5',
-        });
-        layer.getSource().on('addfeature', function(event) {
-            const weight = event.feature.get('weight');
-            event.feature.set('weight', weight);
+            blur: 30,
+            radius: 10,
+            weight: (f) => {
+                return f.get('weight').toString();
+            },
         });
         
         return layer;

@@ -57,7 +57,7 @@ export class ClusteredMarkersLayer {
     }
 
     async getData(extent, resolution, projection) {
-        const data = await fetch(`/api/markers?bbox=${extent.join(',')}&resolution=${resolution}`);
+        const data = await fetch(`/api/markers/${extent[0]}/${extent[1]}/${extent[2]}/${extent[3]}/${resolution}`);
         const json = await data.json();
         const markers = (new GeoJSON()).readFeatures(json).map((marker) => {
             // transform coordinates projection
