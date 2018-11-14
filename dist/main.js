@@ -1200,30 +1200,32 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _const__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./const */ "./src/const.js");
 /* harmony import */ var _layers_tiles__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./layers/tiles */ "./src/layers/tiles.js");
 /* harmony import */ var _layers_markers__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./layers/markers */ "./src/layers/markers.js");
+/* harmony import */ var _layers_density__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./layers/density */ "./src/layers/density.js");
 //@ts-check
 
 
 
 
-const { Map, View, source, layer, format } = openlayers__WEBPACK_IMPORTED_MODULE_0__;
-const { Heatmap: HeatmapLayer } = layer;
-const { OSM, TileDebug, Stamen, Vector: VectorSource } = source;
-const { KML } = format;
+
+const { Map, View, layer } = openlayers__WEBPACK_IMPORTED_MODULE_0__;
 
 const customTileLayer = new _layers_tiles__WEBPACK_IMPORTED_MODULE_2__["CustomTileLayer"]();
 const osmTileLayer = new _layers_tiles__WEBPACK_IMPORTED_MODULE_2__["OSMTileLayer"]();
 const singleMarkerLayer = new _layers_markers__WEBPACK_IMPORTED_MODULE_3__["SingleMarkerLayer"]();
 const clusteredMarkersLayer = new _layers_markers__WEBPACK_IMPORTED_MODULE_3__["ClusteredMarkersLayer"](100);
+const densityLayer = new _layers_density__WEBPACK_IMPORTED_MODULE_4__["DensityLayer"]();
 
 customTileLayer.setVisible(false);
 singleMarkerLayer.setVisible(false);
-// clusteredMarkersLayer.setVisible(false);
+clusteredMarkersLayer.setVisible(false);
+densityLayer.setVisible(false);
 
 const layers = [
     osmTileLayer,
     customTileLayer,
     singleMarkerLayer,
     clusteredMarkersLayer,
+    densityLayer,
 ];
 
 const map = new Map({
@@ -1235,6 +1237,7 @@ const map = new Map({
     projection: _const__WEBPACK_IMPORTED_MODULE_1__["projection"],
     layers,
     interactions: _layers_markers__WEBPACK_IMPORTED_MODULE_3__["ClusteredMarkersLayer"].getInteractions(),
+    renderer: 'canvas'
 });
 
 document.querySelectorAll('#osm-tiles, #custom-tiles').forEach((btn) => {
@@ -1257,30 +1260,71 @@ document.querySelector("#single-marker").addEventListener("change", (e) => {
 document.querySelector("#clustered-markers").addEventListener("change", (e) => {
     clusteredMarkersLayer.setVisible(e.target.checked);
 });
-
-const vector = new HeatmapLayer({
-  extent: _const__WEBPACK_IMPORTED_MODULE_1__["extent"],
-  source: new VectorSource({
-    url: '/data/kml/2012_Earthquakes_Mag5.kml',
-    format: new KML({
-      extractStyles: false
-    })
-  }),
-  blur: 15,
-  radius: 15,
-  weight: '1',
-});
-vector.getSource().on('addfeature', function(event) {
-  // 2012_Earthquakes_Mag5.kml stores the magnitude of each earthquake in a
-  // standards-violating <magnitude> tag in each Placemark.  We extract it from
-  // the Placemark's name instead.
-  var name = event.feature.get('name');
-  var magnitude = parseFloat(name.substr(2));
-  event.feature.set('weight', magnitude - 5);
+document.querySelector("#show-density-map").addEventListener("change", (e) => {
+    densityLayer.setVisible(e.target.checked);
 });
 
 
+/***/ }),
 
+/***/ "./src/layers/density.js":
+/*!*******************************!*\
+  !*** ./src/layers/density.js ***!
+  \*******************************/
+/*! exports provided: DensityLayer */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "DensityLayer", function() { return DensityLayer; });
+/* harmony import */ var openlayers__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! openlayers */ "./node_modules/openlayers/dist/ol.js");
+/* harmony import */ var openlayers__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(openlayers__WEBPACK_IMPORTED_MODULE_0__);
+//@ts-check
+
+const { geom, proj, style, layer, source, interaction, format, loadingstrategy, tilegrid } = openlayers__WEBPACK_IMPORTED_MODULE_0__;
+const { Style, Circle: CircleStyle, Fill, Stroke, Text } = style;
+const { Stamen, Vector: VectorSource } = source;
+const { Heatmap } = layer;
+const { KML } = format;
+const { GeoJSON } = format;
+
+class DensityLayer {
+    async getData(extent, resolution, projection) {
+        const data = await fetch(`/api/density?bbox=${extent.join(',')}&resolution=${resolution}`);
+        const json = await data.json();
+        const markers = (new GeoJSON()).readFeatures(json).map((marker) => {
+            // transform coordinates projection
+            marker.getGeometry().setCoordinates(
+                proj.fromLonLat(marker.getGeometry().getCoordinates())
+            );
+            return marker;
+        });
+
+        this.addFeatures(markers);
+    }
+
+    constructor() {
+        const source = new VectorSource({
+            loader: this.getData,
+            strategy: loadingstrategy.tile(tilegrid.createXYZ({
+                maxZoom: 19
+            })),
+        });
+
+        const layer = new Heatmap({
+            source,
+            blur: 50,
+            radius: 30,
+            weight: '5',
+        });
+        layer.getSource().on('addfeature', function(event) {
+            const weight = event.feature.get('weight');
+            event.feature.set('weight', weight);
+        });
+        
+        return layer;
+    }
+}
 
 /***/ }),
 
@@ -1299,7 +1343,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var openlayers__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(openlayers__WEBPACK_IMPORTED_MODULE_0__);
 //@ts-check
 
-const { Feature, geom, proj, style, layer, source, interaction, events, format } = openlayers__WEBPACK_IMPORTED_MODULE_0__;
+const { Feature, geom, proj, style, layer, source, interaction, events, format, loadingstrategy, tilegrid } = openlayers__WEBPACK_IMPORTED_MODULE_0__;
 const { Vector: VectorSource, Cluster } = source;
 const { Point } = geom;
 const { Style, Icon, Circle: CircleStyle, Fill, Stroke, Text } = style;
@@ -1320,6 +1364,7 @@ class SingleMarkerLayer {
             geometry: new Point(proj.fromLonLat(washington)),
             name: 'Washington, DC',
           });          
+          
           
           const vectorSource = new openlayers__WEBPACK_IMPORTED_MODULE_0__["source"].Vector({
             features: [ iconFeature ]
@@ -1354,18 +1399,52 @@ class ClusteredMarkersLayer {
         ]);
     }
 
-    async getData() {
-        const data = await fetch('/api/markers');
+    async getData(extent, resolution, projection) {
+        const data = await fetch(`/api/markers?bbox=${extent.join(',')}&resolution=${resolution}`);
         const json = await data.json();
-        const markers = (new GeoJSON()).readFeatures(json)
-        this.clusterSource.getSource().addFeatures(markers);
+        const markers = (new GeoJSON()).readFeatures(json).map((marker) => {
+            // transform coordinates projection
+            marker.getGeometry().setCoordinates(
+                proj.fromLonLat(marker.getGeometry().getCoordinates())
+            );
+            return marker;
+        });
+
+        this.addFeatures(markers);
     }
 
-    constructor(distance = 10, count = 100) {
-        this.features = [];        
+    getStyle(feature) {
+        const size = feature.get('features').length;
+        let style = this.styleCache[size];
+        if (!style) {
+            style = new Style({
+                image: new CircleStyle({
+                    radius: 10,
+                    stroke: new Stroke({
+                        color: '#fff'
+                    }),
+                    fill: new Fill({
+                        color: '#3399CC'
+                    })
+                }),
+                text: new Text({
+                    text: size.toString(),
+                    fill: new Fill({
+                        color: '#fff'
+                    })
+                })
+            });
+            this.styleCache[size] = style;
+        }
+        return style;
+    }
 
+    constructor(distance = 10) {
         this.source = new VectorSource({
-            features: this.features,
+            loader: this.getData,
+            strategy: loadingstrategy.tile(tilegrid.createXYZ({
+                maxZoom: 19
+            })),
         });
 
         this.clusterSource = new Cluster({
@@ -1376,34 +1455,8 @@ class ClusteredMarkersLayer {
         this.styleCache = [];
         this.layer = new Vector({
             source: this.clusterSource,
-            style: (feature) => {
-                const size = feature.get('features').length;
-                let style = this.styleCache[size];
-                if (!style) {
-                    style = new Style({
-                        image: new CircleStyle({
-                            radius: 10,
-                            stroke: new Stroke({
-                                color: '#fff'
-                            }),
-                            fill: new Fill({
-                                color: '#3399CC'
-                            })
-                        }),
-                        text: new Text({
-                            text: size.toString(),
-                            fill: new Fill({
-                                color: '#fff'
-                            })
-                        })
-                    });
-                    this.styleCache[size] = style;
-                }
-                return style;
-            },
+            style: f => this.getStyle(f),
         });
-
-        this.getData();
 
         return this.layer;
     }

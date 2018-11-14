@@ -1,6 +1,6 @@
 //@ts-check
 import * as ol from 'openlayers';
-const { Feature, geom, proj, style, layer, source, interaction, events, format } = ol;
+const { Feature, geom, proj, style, layer, source, interaction, events, format, loadingstrategy, tilegrid } = ol;
 const { Vector: VectorSource, Cluster } = source;
 const { Point } = geom;
 const { Style, Icon, Circle: CircleStyle, Fill, Stroke, Text } = style;
@@ -21,6 +21,7 @@ export class SingleMarkerLayer {
             geometry: new Point(proj.fromLonLat(washington)),
             name: 'Washington, DC',
           });          
+          
           
           const vectorSource = new ol.source.Vector({
             features: [ iconFeature ]
@@ -55,18 +56,52 @@ export class ClusteredMarkersLayer {
         ]);
     }
 
-    async getData() {
-        const data = await fetch('/api/markers');
+    async getData(extent, resolution, projection) {
+        const data = await fetch(`/api/markers?bbox=${extent.join(',')}&resolution=${resolution}`);
         const json = await data.json();
-        const markers = (new GeoJSON()).readFeatures(json)
-        this.clusterSource.getSource().addFeatures(markers);
+        const markers = (new GeoJSON()).readFeatures(json).map((marker) => {
+            // transform coordinates projection
+            marker.getGeometry().setCoordinates(
+                proj.fromLonLat(marker.getGeometry().getCoordinates())
+            );
+            return marker;
+        });
+
+        this.addFeatures(markers);
     }
 
-    constructor(distance = 10, count = 100) {
-        this.features = [];        
+    getStyle(feature) {
+        const size = feature.get('features').length;
+        let style = this.styleCache[size];
+        if (!style) {
+            style = new Style({
+                image: new CircleStyle({
+                    radius: 10,
+                    stroke: new Stroke({
+                        color: '#fff'
+                    }),
+                    fill: new Fill({
+                        color: '#3399CC'
+                    })
+                }),
+                text: new Text({
+                    text: size.toString(),
+                    fill: new Fill({
+                        color: '#fff'
+                    })
+                })
+            });
+            this.styleCache[size] = style;
+        }
+        return style;
+    }
 
+    constructor(distance = 10) {
         this.source = new VectorSource({
-            features: this.features,
+            loader: this.getData,
+            strategy: loadingstrategy.tile(tilegrid.createXYZ({
+                maxZoom: 19
+            })),
         });
 
         this.clusterSource = new Cluster({
@@ -77,34 +112,8 @@ export class ClusteredMarkersLayer {
         this.styleCache = [];
         this.layer = new Vector({
             source: this.clusterSource,
-            style: (feature) => {
-                const size = feature.get('features').length;
-                let style = this.styleCache[size];
-                if (!style) {
-                    style = new Style({
-                        image: new CircleStyle({
-                            radius: 10,
-                            stroke: new Stroke({
-                                color: '#fff'
-                            }),
-                            fill: new Fill({
-                                color: '#3399CC'
-                            })
-                        }),
-                        text: new Text({
-                            text: size.toString(),
-                            fill: new Fill({
-                                color: '#fff'
-                            })
-                        })
-                    });
-                    this.styleCache[size] = style;
-                }
-                return style;
-            },
+            style: f => this.getStyle(f),
         });
-
-        this.getData();
 
         return this.layer;
     }
