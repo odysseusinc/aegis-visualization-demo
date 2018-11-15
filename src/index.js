@@ -1,21 +1,16 @@
 //@ts-check
 import * as ol from 'openlayers';
-import { projection } from './const';
+import { projection, washington } from './const';
 import { CustomTileLayer, OSMTileLayer } from './layers/tiles';
 import { SingleMarkerLayer, ClusteredMarkersLayer } from './layers/markers';
 import { DensityLayer } from './layers/density';
-const { Map, View, layer } = ol;
+const { Map, View, proj } = ol;
 
 const customTileLayer = new CustomTileLayer();
 const osmTileLayer = new OSMTileLayer();
 const singleMarkerLayer = new SingleMarkerLayer();
 const clusteredMarkersLayer = new ClusteredMarkersLayer(100);
 const densityLayer = new DensityLayer();
-
-customTileLayer.setVisible(false);
-singleMarkerLayer.setVisible(false);
-clusteredMarkersLayer.setVisible(false);
-densityLayer.setVisible(false);
 
 const layers = [
     osmTileLayer,
@@ -28,35 +23,45 @@ const layers = [
 const map = new Map({
     target: 'map',
     view: new View({
-        center: [-10997148, 4569099],
-        zoom: 4,
+        center: proj.fromLonLat(washington),
+        zoom: 8,
     }),
     projection,
-    layers,
-    interactions: ClusteredMarkersLayer.getInteractions(),
     renderer: 'canvas'
 });
+
+layers.forEach((layerContainer) => {
+    const layer = layerContainer.layer;
+    layer.setVisible(false);
+    map.addLayer(layer);
+    layerContainer.getInteractions().forEach((interaction) => {
+        map.addInteraction(interaction);
+    });
+});
+
+// OSM is visible by default
+layers[0].layer.setVisible(true);
 
 document.querySelectorAll('#osm-tiles, #custom-tiles').forEach((btn) => {
     btn.addEventListener('change', (e) => {
         switch (e.target.id) {
             case 'osm-tiles':
-                osmTileLayer.setVisible(true);
-                customTileLayer.setVisible(false);
+                osmTileLayer.layer.setVisible(true);
+                customTileLayer.layer.setVisible(false);
                 break;
             default:
-                osmTileLayer.setVisible(false);
-                customTileLayer.setVisible(true);
+                osmTileLayer.layer.setVisible(false);
+                customTileLayer.layer.setVisible(true);
                 break;
         }
     });
 });
 document.querySelector("#single-marker").addEventListener("change", (e) => {
-    singleMarkerLayer.setVisible(e.target.checked);
+    singleMarkerLayer.layer.setVisible(e.target.checked);
 });
 document.querySelector("#clustered-markers").addEventListener("change", (e) => {
-    clusteredMarkersLayer.setVisible(e.target.checked);
+    clusteredMarkersLayer.layer.setVisible(e.target.checked);
 });
 document.querySelector("#show-density-map").addEventListener("change", (e) => {
-    densityLayer.setVisible(e.target.checked);
+    densityLayer.layer.setVisible(e.target.checked);
 });

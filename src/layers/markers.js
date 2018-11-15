@@ -1,45 +1,53 @@
 //@ts-check
 import * as ol from 'openlayers';
+import { washington } from '../const';
+import { Layer } from '../Layer';
 const { Feature, geom, proj, style, layer, source, interaction, events, format, loadingstrategy, tilegrid } = ol;
 const { Vector: VectorSource, Cluster } = source;
 const { Point } = geom;
 const { Style, Icon, Circle: CircleStyle, Fill, Stroke, Text } = style;
 const { Vector } = layer;
-const { defaults: defaultInteractions, Select } = interaction;
+const { Select } = interaction;
 const { GeoJSON } = format;
 
-const washington = [-77.105665, 38.861637];
 const iconStyle = new Style({
   image: new Icon({
     src: 'data/marker.png'
   })
 });    
 
-export class SingleMarkerLayer {
+export class SingleMarkerLayer extends Layer {
     constructor() {
+        super();
         const iconFeature = new Feature({
             geometry: new Point(proj.fromLonLat(washington)),
             name: 'Washington, DC',
-          });          
-          
-          
-          const vectorSource = new ol.source.Vector({
+        });          
+        
+        
+        const vectorSource = new ol.source.Vector({
             features: [ iconFeature ]
-          });                
-          
-          return new Vector({
+        });                
+        
+        this.layer = new Vector({
             source: vectorSource,
             style: iconStyle
-          });
+        });
+          
+        return this;
     }
 }
 
-export class ClusteredMarkersLayer {
-    static getInteractions() {
-        const onClick = new Select({
-            condition: events.condition.click,                
+export class ClusteredMarkersLayer extends Layer {
+    getInteractions() {
+        const interaction = new Select({
+            filter: (feature, layer) => {
+                return layer.get('name') === 'cluster'
+            },
+            style: feature => this.getStyle(feature),
         });
-        onClick.on('select', function (e) {
+        interaction.on('select', function (e) {
+            e.preventDefault();
             if (!e.selected.length) {
                 return false;
             }
@@ -51,9 +59,7 @@ export class ClusteredMarkersLayer {
             });
         })
 
-        return defaultInteractions().extend([
-            onClick,
-        ]);
+        return [interaction];
     }
 
     async getData(extent, resolution, projection) {
@@ -97,6 +103,7 @@ export class ClusteredMarkersLayer {
     }
 
     constructor(distance = 10) {
+        super();
         this.source = new VectorSource({
             loader: this.getData,
             strategy: loadingstrategy.tile(tilegrid.createXYZ({
@@ -111,10 +118,9 @@ export class ClusteredMarkersLayer {
 
         this.styleCache = [];
         this.layer = new Vector({
+            name: 'cluster',
             source: this.clusterSource,
             style: f => this.getStyle(f),
         });
-
-        return this.layer;
     }
 }
