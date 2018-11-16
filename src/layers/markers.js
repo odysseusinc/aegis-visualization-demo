@@ -1,6 +1,6 @@
 //@ts-check
 import * as ol from 'openlayers';
-import { washington } from '../const';
+import { odysseusLocation } from '../const';
 import { Layer } from '../Layer';
 const { Feature, geom, proj, style, layer, source, interaction, events, format, loadingstrategy, tilegrid } = ol;
 const { Vector: VectorSource, Cluster } = source;
@@ -20,8 +20,8 @@ export class SingleMarkerLayer extends Layer {
     constructor() {
         super();
         const iconFeature = new Feature({
-            geometry: new Point(proj.fromLonLat(washington)),
-            name: 'Washington, DC',
+            geometry: new Point(proj.fromLonLat(odysseusLocation)),
+            name: 'Odysseus, US',
         });          
         
         
