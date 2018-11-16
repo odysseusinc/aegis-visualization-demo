@@ -1,6 +1,6 @@
 //@ts-check
 import * as ol from 'openlayers';
-import { projection, washington } from './const';
+import { projection, odysseusLocation } from './const';
 import { CustomTileLayer, OSMTileLayer } from './layers/tiles';
 import { SingleMarkerLayer, ClusteredMarkersLayer } from './layers/markers';
 import { DensityLayer } from './layers/density';
@@ -23,7 +23,7 @@ const layers = [
 const map = new Map({
     target: 'map',
     view: new View({
-        center: proj.fromLonLat(washington),
+        center: proj.fromLonLat(odysseusLocation),
         zoom: 8,
     }),
     projection,
